@@ -3,8 +3,14 @@
  * WP-CLI команда для импорта таксономий WooCommerce из CSV файла
  * 
  * Использование:
+ * wp eval-file path/to/taxonomy_import.php taxonomy-import path/to/file.csv --mode=update|replace [--dry-run] [--verbose] [--delimiter=,] [--skip-lines=0] [--batch-size=100]
+ * команда ниже работала только если скрипт положить в mu-plugins, но тогда сайт ломался - скрипт запускался при каждом запросе
  * wp taxonomy-import path/to/file.csv --mode=update|replace [--dry-run] [--verbose] [--delimiter=,] [--skip-lines=0] [--batch-size=100]
+ * Версия с отдельным классом для обработки терминов, требует подключения TaxonomyTermProcessor.php
  */
+
+// Import TaxonomyTermProcessor class
+require_once __DIR__ . '/TaxonomyTermProcessor.php';
 
 if (!defined('WP_CLI') || !WP_CLI) {
     exit('Этот скрипт может быть запущен только через WP-CLI');
@@ -244,9 +250,7 @@ class WC_Taxonomy_Import_Command {
         return true;
     }
     
-    /** БЛОК 3: Подготовка массива данных
-     *
-     */
+    // БЛОК 3: Подготовка массива данных
     private function block3_data_preparation($file_path) {
         $handle = fopen($file_path, 'r');
         if (!$handle) {
@@ -273,9 +277,12 @@ class WC_Taxonomy_Import_Command {
             }
         }
         
+        // Создаем процессор терминов
+        $term_processor = new TaxonomyTermProcessor($this->verbose);
+        
         $prepared_data = [];
         $sku_duplicates = [];
-        $line_number = $this->skip_lines + 2; // +1 для заголовков, +1 для нумерации с 1
+        $line_number = $this->skip_lines + 2;
         
         // Создание progress bar
         $total_lines = count(file($file_path)) - $this->skip_lines - 1;
@@ -330,23 +337,11 @@ class WC_Taxonomy_Import_Command {
                     continue;
                 }
                 
-                // Проверка существования термина
-                $term = get_term_by('name', $term_value, $taxonomy);
+                // ИСПОЛЬЗОВАНИЕ НОВОГО ПРОЦЕССОРА
+                $term = $term_processor->process_term($term_value, $taxonomy);
+                
                 if (!$term) {
-                    $this->errors['terms_not_found'][] = $taxonomy . ': "' . $term_value . '"';
-                    continue;
-                }
-                
-                // Проверка на дубликаты терминов
-                $duplicate_terms = get_terms([
-                    'taxonomy' => $taxonomy,
-                    'name' => $term_value,
-                    'hide_empty' => false
-                ]);
-                
-                if (count($duplicate_terms) > 1) {
-                    $term_ids = array_map(function($t) { return $t->term_id; }, $duplicate_terms);
-                    $this->errors['duplicate_terms'][] = $taxonomy . ': "' . $term_value . '" (IDs: ' . implode(', ', $term_ids) . ')';
+                    // Термин не найден или есть ошибки
                     continue;
                 }
                 
@@ -368,7 +363,7 @@ class WC_Taxonomy_Import_Command {
                 }
                 $this->stats['terms_per_taxonomy'][$taxonomy]++;
             }
-            
+            // Если нет данных для таксономий, пропу
             if (!empty($taxonomies_data)) {
                 $prepared_data[$sku] = [
                     'product_id' => $product_id,
@@ -383,16 +378,25 @@ class WC_Taxonomy_Import_Command {
         $progress->finish();
         fclose($handle);
         
+        // Объединяем ошибки из процессора с основными ошибками
+        $processor_errors = $term_processor->get_errors();
+        foreach ($processor_errors as $error_type => $errors) {
+            if (!isset($this->errors[$error_type])) {
+                $this->errors[$error_type] = [];
+            }
+            $this->errors[$error_type] = array_merge($this->errors[$error_type], $errors);
+        }
+        
         // Обработка дубликатов SKU
         if (!empty($sku_duplicates)) {
             WP_CLI::warning('Найдены дубликаты SKU: ' . implode(', ', array_unique($sku_duplicates)));
         }
-        
+
         if ($this->verbose) {
             WP_CLI::log('Подготовка данных завершена');
             WP_CLI::log('Товаров для обработки: ' . count($prepared_data));
         }
-        
+
         return $prepared_data;
     }
     
