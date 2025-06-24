@@ -101,9 +101,12 @@ CSV-файл: export2.v6.csv
 - S-01041: size_mm "50–54 mm (≈1.93–2.13 inch)"  
 ```
 
-### Установка  
+### Установка  taxonomy_import.phpz
 1. Убедитесь, что WP-CLI и WooCommerce установлены.  
-2. Все файлы (на момент написания этого файла - taxonomy_import.php и PaxonomyTermProcessor.php) поместить в отдельную директорию
+2. Все файлы (на момент написания этого файла - taxonomy_import.php, PaxonomyTermProcessor.php, taxonomy_import_register.php) поместить в отдельную директорию
+   а) taxonomy_import.php - основной скрипт
+   b) PaxonomyTermProcessor.php - класс для обработки входного файла и подготовки данных для импорта
+   c) taxonomy_import_register.php - функция для регистрации команды WP_CLI taxonomy-import (чтобы можно было использовать wp taxonomy-import)
 
 ### Подготовка файла с терминами для импорта
 В первой строке указываются заголовки столбцов
@@ -128,10 +131,13 @@ wp db export /путь/к/папке/backup.sql
 ```bash
 wp db import имя_файла.sql
 ```
-
-Запускается с помощью WP-CLI:  
+Перед импортом регистрируем команду taxonomy-import (нужно регистрировать в каждой ssh-сессии)
 ```bash
-wp eval-file path/to/taxonomy_import.php taxonomy-import path/to/file.csv --mode=update|replace [--dry-run] [--verbose] [--delimiter=,] [--skip-lines=0] [--batch-size=100]
+wp eval-file path/to/register-command.php
+```
+После регистрации импорт выполняется с помощью WP-CLI:  
+```bash
+wp taxonomy-import path/to/file.csv --mode=update|replace [--dry-run] [--verbose] [--delimiter=,] [--skip-lines=0] [--batch-size=100]
 ```
 Рекомендуется сначала запустить с флагом --dry-run, затем исправить ошибки, и потом запустить на внесение изменений
 
