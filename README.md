@@ -1,152 +1,155 @@
-# WooCommerce Taxonomy Import Tool
+Инструмент импорта таксономий WooCommerce  
+Инструмент на базе WP-CLI для импорта и обновления таксономий продуктов WooCommerce из CSV-файла. Разрабатывался для импорта таксономий, которые создаются и поддерживаются через функцию register_taxonomy (в моем случае как плагин)
+Этот инструмент упрощает управление назначением таксономий для продуктов, обеспечивая надежную валидацию, обработку ошибок и подробную отчетность.
+Примечание: проект находится в разработке, и его функциональность не полностью протестирована.
 
-A WP-CLI based tool for importing and updating WooCommerce product taxonomies from a CSV file. This tool streamlines the process of managing taxonomy assignments for products, with robust validation, error handling, and detailed reporting.
-Note: This project is a work in progress, and its functionality has not been fully tested.
+### Возможности  
+**Основная функциональность**  
+- Читает CSV-файл, содержащий SKU и значения таксономий.  
+- Получает ID продуктов по SKU.  
+- Обновляет или заменяет термины таксономий для продуктов.  
+- Обрабатывает случаи, когда продукты или таксономии не найдены.  
+- Поддерживает несколько терминов таксономий и обнаруживает дубликаты.  
+- Генерирует подробную статистику и записывает результаты в файл с временной меткой.
 
-## Features
-### Core Functionality
+**Валидация CSV**  
+- Проверяет структуру CSV (стабильное количество столбцов, пустые строки/ячейки).  
+- Проверяет наличие дублирующихся SKU в файле.  
+- Проверяет кодировку UTF-8.  
+- Обрабатывает отсутствующие или лишние ячейки в строках.
 
-Reads a CSV file containing SKU and taxonomy values.
-Retrieves product IDs based on SKU.
-Updates or replaces taxonomy terms for products.
-Handles cases where products or taxonomies are not found.
-Supports multiple taxonomy terms and detects duplicates.
-Generates detailed statistics and logs results to a file with a timestamp.
+**Обработка ошибок**  
+- Прерывает выполнение при критических ошибках базы данных, сообщая о проблемном продукте.  
+- Уведомляет пользователя, если лог-файл не может быть создан.  
+- Пропускает несуществующие продукты или таксономии с соответствующими уведомлениями.
 
-### CSV Validation
+**Параметры конфигурации**  
+- `--verbose`: включает подробный вывод в терминал.  
+- `--delimiter`: поддерживает `,` или `;`.  
+- `--skip-rows=`: позволяет пропустить указанное количество строк в начале файла.  
+- `--dry-run`: имитирует выполнение без внесения изменений в базу данных
+- `--batch-size=`: сколько строк выполнить за заход
 
-Validates CSV structure (consistent column count, empty rows/cells).
-Checks for duplicate SKUs in the file.
-Ensures UTF-8 encoding.
-Handles missing or extra cells in rows.
+**Расширенная статистика**  
+- Отслеживает время обработки и среднюю скорость (строк/секунду).  
+- Сообщает количество обработанных терминов для каждой таксономии.  
+- Отображает индикатор прогресса для больших файлов.
 
-### Error Handling
+**Функции безопасности**  
+- Проверяет размер файла, чтобы избежать обработки слишком больших файлов.  
+- Поддерживает пакетную обработку с настраиваемым размером пакета.  
+- Ограничивает количество одновременно обрабатываемых строк.
 
-Stops execution on critical database errors, reporting the problematic product.
-Notifies users if the log file cannot be created.
-Skips non-existent products or taxonomies with appropriate notifications.
+**Постобработка**  
+- Очищает кэш WordPress после массовых обновлений.  
+- Автоматически обновляет счетчики терминов таксономий.  
+- Поддерживает опциональное резервное копирование перед внесением изменений.
 
-### Configuration Options
+### Структура программы  
+Инструмент модульный для удобства поддержки и обновлений:  
 
--verbose: Enables detailed output in the terminal.
-Custom CSV delimiter: Supports , or ; as delimiters.
-Skip rows: Allows skipping a specified number of rows at the file's start.
--dry-run: Simulates execution without making changes to the database.
+**Инициализация и проверки**  
+- Проверяет входные параметры и флаги.  
+- Проверяет возможность записи лог-файла.  
+- Подтверждает наличие WordPress и WooCommerce.  
+- Инициализирует статистику и отслеживание ошибок.
 
-### Advanced Statistics
+**Валидация CSV**  
+- Проверяет существование, доступность файла и кодировку UTF-8.  
+- Проверяет размер файла и структуру CSV.  
+- Обнаруживает дублирующиеся SKU и обрабатывает пустые строки/ячейки.
 
-Tracks processing time and average speed (rows/second).
-Reports the number of processed terms per taxonomy.
-Displays a progress bar for large files.
+**Подготовка данных**  
+- Парсит CSV в структурированный массив.  
+- Проверяет таксономии, термины и SKU продуктов.  
+- Подготавливает данные для обработки или режима `--dry-run`.
 
-### Safety Features
+**Обновление базы данных**  
+- Получает ID продуктов по SKU.  
+- Обновляет или заменяет термины таксономий.  
+- Обрабатывает ошибки базы данных и собирает статистику операций.
 
-Checks file size to prevent processing excessively large files.
-Supports batch processing with configurable batch sizes.
-Limits the number of rows processed at once.
+**Завершение и отчетность**  
+- Выводит итоговую статистику в терминал.  
+- Генерирует подробный лог-файл с временной меткой.  
+- Очищает кэш и обновляет счетчики терминов при необходимости.
 
-### Post-Processing
+### Лог-файл вывода  
+Инструмент создает лог-файл с именем `taxonomy_update_results_ГГГГ-ММ-ДД_ЧЧ-ММ-СС.log` следующей структуры:  
+```
+=== РЕЗУЛЬТАТЫ ОБНОВЛЕНИЯ ТАКСОНОМИЙ ===  
+Дата: 2025-06-16 14:30:25  
+CSV-файл: export2.v6.csv  
+Режим: [ОБНОВЛЕНИЕ/ЗАМЕНА]  
 
-Clears WordPress cache after bulk updates.
-Updates taxonomy term counters automatically.
-Supports optional backup before making changes.
+СТАТИСТИКА:  
+Всего обработано строк: 4  
+Найдено продуктов: 3  
+Продуктов не найдено: 1  
+Обновлено таксономий: 6  
+Пропущено таксономий (уже существуют): 2  
 
-## Program Structure
+ОШИБКИ:  
+Продукты не найдены:  
+- S-99999  
+Термины не найдены:  
+- stone_type: "Unknown Stone"  
+Обнаружены дублирующиеся термины:  
+- size_mm: "50mm" (ID: 123, 456)  
+Пропущены существующие таксономии:  
+- S-00816: stone_type "Agate"  
+- S-01041: size_mm "50–54 mm (≈1.93–2.13 inch)"  
+```
 
-The tool is modular for easy maintenance and updates:
+### Установка  
+1. Убедитесь, что WP-CLI и WooCommerce установлены.  
+2. Все файлы (на момент написания этого файла - taxonomy_import.php и PaxonomyTermProcessor.php) поместить в отдельную директорию
 
-### Initialization and Checks
+### Подготовка файла с терминами для импорта
+В первой строке указываются заголовки столбцов
+- первый столбец должен иметь название SKU - по нему будут инициализироваться товары (артикул)
+- второй и последующий столбы - названия таксономий, как они указаны в функции register_taxonomy
+Во второй и последующих строках:
+- первая колонка - артикулы (SKU)
+- вторая и последующая - термины таксономии, обрабатываются по следующим правилам
+  - если указан просто термин
+    - если термин уникальный - он будет закреплен за товаром
+    - если термин неуникальный - будет выведена ошибка
+  - если указан полный путь с родителем (с разделителем ">")
+    - если термин найдет - он будет закреплен за товаром
+    - если термин или родитель не найдет - будет выведена ошибка
 
-Validates input parameters and flags.
-Ensures log file writeability.
-Confirms WordPress and WooCommerce availability.
-Initializes statistics and error tracking.
+### Использование  
+Перед импортом рекомендуется сделать полную копию базы данных:
+```bash
+wp db export /путь/к/папке/backup.sql
+```
+Если неудачно, то восстанавливаем базу:
+```bash
+wp db import имя_файла.sql
+```
 
+Запускается с помощью WP-CLI:  
+```bash
+wp eval-file path/to/taxonomy_import.php taxonomy-import path/to/file.csv --mode=update|replace [--dry-run] [--verbose] [--delimiter=,] [--skip-lines=0] [--batch-size=100]
+```
+Рекомендуется сначала запустить с флагом --dry-run, затем исправить ошибки, и потом запустить на внесение изменений
 
-### CSV Validation
+### Параметры  
+- `--file`: Путь к CSV-файлу.  
+- `--delimiter`: Разделитель CSV (`,` или `;`).  
+- `--verbose`: Включить подробный вывод.  
+- `--dry-run`: Имитировать выполнение без изменений в базе данных.  
+- `--skip-rows=<число>`: Пропустить указанное количество строк в начале файла.  
+- `--batch-size=<число>`: Количество строк для обработки в одном пакете.
 
-Verifies file existence, accessibility, and UTF-8 encoding.
-Checks file size and CSV structure.
-Detects duplicate SKUs and handles empty rows/cells.
+### Требования  
+- WordPress с установленным WooCommerce.  
+- WP-CLI.  
+- PHP 7.4 или выше.
 
+### Лицензия  
+GNU General Public License v3.0  
 
-### Data Preparation
-
-Parses CSV into a structured array.
-Validates taxonomies, terms, and product SKUs.
-Prepares data for processing or dry-run mode.
-
-
-### Database Updates
-
-Retrieves product IDs by SKU.
-Updates or replaces taxonomy terms.
-Handles database errors and collects operation statistics.
-
-
-### Completion and Reporting
-
-Outputs final statistics to the terminal.
-Generates a detailed log file with a timestamp.
-Clears cache and updates term counters if needed.
-
-
-
-## Output Log File
-The tool generates a log file named taxonomy_update_results_YYYY-MM-DD_HH-MM-SS.log with the following structure:
-=== TAXONOMY UPDATE RESULTS ===
-Date: 2025-06-16 14:30:25
-CSV File: export2.v6.csv
-Mode: [UPDATE/REPLACE]
-
-STATISTICS:
-- Total rows processed: 4
-- Products found: 3
-- Products not found: 1
-- Taxonomies updated: 6
-- Taxonomies skipped (already existed): 2
-
-ERRORS:
-Products not found:
-- S-99999
-
-Terms not found:
-- stone_type: "Unknown Stone"
-
-Duplicate terms found:
-- size_mm: "50mm" (IDs: 123, 456)
-
-Already existing taxonomies (skipped):
-- S-00816: stone_type "Agate"
-- S-01041: size_mm "50–54 mm (≈1.93–2.13 inch)"
-
-## Installation
-
-Ensure WP-CLI and WooCommerce are installed.
-Clone this repository:git clone https://github.com/yourusername/woocommerce-taxonomy-import.git
-
-Navigate to the project directory and install dependencies (if any).
-
-### Usage
-Run the tool using WP-CLI:
-wp taxonomy-import --file=export2.v6.csv --delimiter="," --verbose --dry-run
-
-### Options
-
---file: Path to the CSV file.
---delimiter: CSV delimiter (, or ;).
---verbose: Enable detailed output.
---dry-run: Simulate execution without database changes.
---skip-rows=<number>: Skip the specified number of rows at the start.
---batch-size=<number>: Number of rows to process per batch.
-
-### Requirements
-
-WordPress with WooCommerce installed.
-WP-CLI.
-PHP 7.4 or higher.
-
-## License
-GNU General Public License v3.0
-Contributing
-Contributions are welcome! Please submit issues or pull requests to improve the tool. Note that all contributions must be licensed under the GNU GPL v3.0 to ensure the project remains fully open-source.
+### Вклад  
+Приветствуются любые вклады! Пожалуйста, отправляйте запросы на улучшение или исправление ошибок. Все вклады должны быть лицензированы под GNU GPL v3.0, чтобы проект оставался полностью открытым.
